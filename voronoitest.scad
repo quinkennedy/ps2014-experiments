@@ -12,93 +12,189 @@ function rect_spher(p) =
  */
 include <scad-utils/hull.scad>
 
+inv = true;
+zs = [0, 52, 85, 95, 128, 180];
+zsi = [180, 128, 95, 85, 52, 0];
+ts = [-36, 0, 36];
+tsi = [36, 0, -36];
+
 spherical = [
-  for(t = [0 : 36 : 359], z = [0, 52, 85, 95, 128, 180]) 
+  for(t = ts, z = zs) 
+    [diameter/2, z > 90 ? t + 2 : t, z]
+];
+sphericali = [ 
+  for(t = ts, z = zsi) 
     [diameter/2, z > 90 ? t + 2 : t, z]
 ];
 
 points3d = [ for(p = spherical) spher_rect(p[0], p[1], p[2]) ];
+points3di = [ for(p = sphericali) spher_rect(p[0], p[1], p[2]) ];
 
 //midpoints = [ for(f = points3d)
 
 hull = hull(points3d);
+hulli = hull(points3di);
+
+offsets = rands(.5, .5, len(points3d) * 10, 310);
 
 function cat(L1, L2) = [for (i=[0:len(L1)+len(L2)-1]) 
-                        i < len(L1)? L1[i] : L2[i-len(L1)]] ;
+                        i < len(L1)? L1[i] : L2[i-len(L1)]];
 
-module drawAround(i){
-  p1Faces = [
-    for(f = hull)
-      if (len([
-        for(p = f) 
-          if (p == i) true
-      ]) > 0) f];
-  //echo(p1Faces);
-  p1Neighbors = [
-    for(f = p1Faces)
-      f[0] == i ? f[2] : f[1] == i ? f[0] : f[1]
-  ];
-  p1CloseNeighbors = [
-    for(n = p1Neighbors)
-      if (abs(n - i) < 7) n
-  ];
-  //echo(p1CloseNeighbors);
+function contains(L1, e) = 
+  len(
+    [ for(p=L1) 
+      if (p[0] == e[0] && p[1] == e[1] && p[2] == e[2]) 
+        true
+    ]
+  ) > 0;
+
+function join(L1, L2) = 
+  cat(
+    [for(p=L1) if (contains(L2, p) == false) p],
+    L2);
+
+//get all faces which include the specified vertex.
+function facesIncluding(faces, targetIndex) = [
+  //for each face in the hull.
+  for(face = faces)
+    //if one of the vertices is the target point.
+    if(
+      len([
+        for(vertexIndex = face)
+          if (vertexIndex == targetIndex) true
+      ]) > 0) face
+];
+
+//Get all points directly connected to the target point.
+//This assumes that the target point is
+// completely surrounded (no gaps in geometry)
+function getNeighborPoints(faces, targetIndex) = [
+  let (neighborFaces = facesIncluding(faces, targetIndex))
+    for(face = neighborFaces)
+      face[0] == targetIndex 
+        ? face[2] 
+        : face[1] == targetIndex 
+          ? face[0] 
+          : face[1]
+];
+
+//move the provided point toward or away from 0,0,0
+// to match the given radius
+function putOnSphere(radius, point) =
+  let(s=rect_spher(point))
+    spher_rect(radius, s[1], s[0]);
+
+function uninverse(L) =
+    [for(i = L) len(points3d) - i];
+
+module drawAround(column, row){
+  targetPoint = 7 + row;
+  targetPointi = 10 - row;
+  //get all points that share an edge with this point
+  p1Neighbors = 
+    join(
+      getNeighborPoints(hull, targetPoint),
+      getNeighborPoints(hulli, targetPointi));
+  //get the points midway between
+  // the target point and each neighbor
   p1MidPoints = [
     for(n=p1Neighbors)
-      (points3d[n] + points3d[i])/2
+      let(
+        offin = (column == 9 && n >= targetPoint + 5)
+          ? targetPoint - 6
+          : min(n, targetPoint) + 6*column,
+        offset = n == 5 || n == 0 ? .75 : offsets[offin],
+        alpha = n < targetPoint ? offset : 1-offset
+      )
+        (points3d[n] * alpha + 
+          points3d[targetPoint] * (1.0-alpha))
   ];
-  points = cat(p1MidPoints, [points3d[i]]);
-  p1MidExt = [
-    for(p = points)
-      let(s=rect_spher(p))
-        spher_rect(diameter/2+2, s[1], s[0])
-  ];
+  //include the target point in the set for hull creation
+  points = cat(p1MidPoints, [points3d[targetPoint]]);
+  //extend all midpoints slightly beyond 
+  // the surface of the sphere
+  p1MidExt = [ for(p = points) putOnSphere(diameter/2+2, p) ];
+  //project all points out to a very large sphere
   pointsFar = [
     for(p=points)
-      let(s=rect_spher(p))
-        spher_rect(diameter, s[1],s[0])
+      putOnSphere(diameter, p)
   ];
+  //project all points exactly onto the sphere
   p1MidSurface = [
     for(p = points)
-      let(s=rect_spher(p))
-        spher_rect(diameter/2, s[1], s[0])
+      putOnSphere(diameter/2, p)
   ];
-  //pSurf = cat(p1MidSurface, [points3d[i]]);
+  p1MidOnlySurface = [
+    for(p=p1MidPoints)
+      putOnSphere(diameter/2, p)
+  ];
+  //create a thin shell starting at the surface
+  // defined by the raw midpoint geometry
   pSurf = cat(p1MidExt, p1MidSurface);
   pointAroundHull = hull(pSurf);
+  //create a geometry with its outside
+  // on the surface of the sphere
   pSubSurf = cat(p1MidSurface, p1MidPoints);
   subPoints = hull(pSubSurf);
   
-  faceted=false;
+  faceted=true;
   
-  if (faceted){
-    // faceted along sphere surface
-    difference(){
-      polyhedron(points=pSurf, faces = pointAroundHull);
-      polyhedron(points=pSubSurf, faces=subPoints);
-    }
-  } else {
-    sphered = false;
-    pointsFarCenter = cat(pointsFar, [[0,0,0]]);
-    hullFarCenter = hull(pointsFarCenter);
-    if (sphered){
-      intersection(){
-        difference(){
-          sphere(d=diameter+2, $fn=13);
-          sphere(d=diameter, $fn=13);
-        }
-        polyhedron(points=pointsFarCenter, faces=hullFarCenter);
+  rotate([0, 0, 36*column]){
+  
+    if (faceted){
+      // faceted along sphere surface
+      difference(){
+        polyhedron(points=pSurf, faces = pointAroundHull);
+        polyhedron(points=pSubSurf, faces=subPoints);
       }
     } else {
-      
-      // flattened to tangential plane
-      intersection(){
-        placePlane(i);
-        polyhedron(points=pointsFarCenter, faces=hullFarCenter);
+      sphered = false;
+      pointsFarCenter = cat(pointsFar, [[0,0,0]]);
+      hullFarCenter = hull(pointsFarCenter);
+      if (sphered){
+        intersection(){
+          difference(){
+            sphere(d=diameter+2, $fn=100);
+            sphere(d=diameter, $fn=100);
+          }
+          polyhedron(points=pointsFarCenter, faces=hullFarCenter);
+        }
+      } else {
+        voronoi = false;
+        if (voronoi){
+          union(){
+            for(p=p1MidOnlySurface){
+              placeAtTarget(targetPoint){
+                cube(
+                  magnitude(p - points3d[targetPoint]),
+                  true);
+              }
+            }
+          }
+        } else {
+          // flattened to tangential plane
+          intersection(){
+            placePlane(targetPoint);
+            polyhedron(
+              points=pointsFarCenter, 
+              faces=hullFarCenter);
+          }
+        }
       }
     }
   }
   //visualize_hull(p1midPoints);
+}
+
+function magnitude(v) =
+  sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+
+module placeAtTarget(i){
+  rotate([spherical[i][2], 0, spherical[i][1] + 90]){
+    translate([0, 0, diameter/2]){
+      children();
+    }
+  }
 }
 
 module placePlane(i){
@@ -118,14 +214,22 @@ function getTabRot(z) =
 function isTabCenter(z) =
     z == 85 || z == 95;
 
-module placeTabHole(i){
-    rotate([spherical[i][2], 0, spherical[i][1] + 90]){
-        translate([0, 0, getTabDist(spherical[i][2])/*spherical[i][0]*/]){
-            rotate([0, 0, getTabRot(spherical[i][2])]){
-                tabHole(center=isTabCenter(spherical[i][2]), extended=.5);
-            }
-        }
+module placeTabHole(column, row){
+  index = 7 + row;
+  rotate([
+    spherical[index][2], 
+    0, 
+    36*column + 90
+    /*spherical[index][1] + 90*/])
+  {
+    translate([0, 0, getTabDist(spherical[index][2])/*spherical[index][0]*/]){
+      rotate([0, 0, getTabRot(spherical[index][2])]){
+        tabHole(
+          center=isTabCenter(spherical[index][2]), 
+          extended=.5);
+      }
     }
+  }
 }
 
 module placeTab(i){
@@ -138,26 +242,40 @@ module placeTab(i){
     }
 }
 
-drawAll = false;
+drawAll = true;
 
 if (drawAll){
-  for(i=[1:8]){
-    drawAround(i*6+1);
-    drawAround(i*6+2);
-    drawAround(i*6+3);
-    drawAround(i*6+4);
+  onlytwo=false;
+  cSet = (onlytwo ? [9,0,1] : [for(c =[0:9]) c]);
+  for(r=[0:3], c=cSet){
+    drawAround(c,r);
+    drawAround(c,r);
+    drawAround(c,r);
+    drawAround(c,r);
   }
 } else {
-  //translate([0, 0, -diameter/2]){
-    //rotate([180-spherical[13][2], 0, 0]){
-  rotate([0, 180-spherical[13][2], 0]){
-      rotate([0, 0, -spherical[13][1]]){
-        union(){
-          drawAround(13);
-          //placeTabHole(13);
+  twoD = false;
+  if (twoD){
+    projection(){
+      rotate([0, 180-spherical[13][2], 0]){
+        rotate([0, 0, -spherical[13][1]]){
+          union(){
+            drawAround(13);
+            placeTabHole(13);
+          }
         }
       }
     }
+  } else {
+    c = 9;
+    r = 1;
+    union(){
+      drawAround(c,r);
+      placeTabHole(c,r);
+    }
+  }
+  //translate([0, 0, -diameter/2]){
+    //rotate([180-spherical[13][2], 0, 0]){
 }
 
 /*for(i=[12:17]){
