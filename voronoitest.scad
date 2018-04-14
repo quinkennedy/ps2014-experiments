@@ -94,7 +94,7 @@ module drawAround(column, row){
   p1Neighbors = 
     join(
       getNeighborPoints(hull, targetPoint),
-      getNeighborPoints(hulli, targetPointi));
+      uninverse(getNeighborPoints(hulli, targetPointi)));
   //get the points midway between
   // the target point and each neighbor
   p1MidPoints = [
