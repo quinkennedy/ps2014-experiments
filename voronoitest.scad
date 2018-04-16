@@ -12,7 +12,7 @@ function rect_spher(p) =
  */
 include <scad-utils/hull.scad>
 
-both = false;
+both = true;
 inv = true;
 zs = [0, 52, 85, 95, 128, 180];
 zsi = [180, 128, 95, 85, 52, 0];
@@ -27,9 +27,6 @@ sphericali = [
   for(t = ts, z = zsi) 
     [diameter/2, z > 90 ? t + 2 : t, z]
 ];
-  
-  echo(sphericali);
-  echo(spherical);
 
 points3d = [ for(p = spherical) spher_rect(p[0], p[1], p[2]) ];
 points3di = [ for(p = sphericali) spher_rect(p[0], p[1], p[2]) ];
@@ -40,6 +37,7 @@ hull = hull(points3d);
 hulli = hull(points3di);
 
 offsets = rands(.5, .5, len(points3d) * 10, 310);
+retractAmt = 10;
 
 function cat(L1, L2) = [for (i=[0:len(L1)+len(L2)-1]) 
                         i < len(L1)? L1[i] : L2[i-len(L1)]];
@@ -101,8 +99,8 @@ function uninverse(L) =
       i <= 5 
         ? 5 - i 
         : i <= 11 
-          ? 11 - i 
-          : 17 - i];//len(points3d)-1 - i];
+          ? 11 - (i - 6) 
+          : 17 - (i - 12)];//len(points3d)-1 - i];
 
 module drawAround(column, row){
   targetPoint = 7 + row;
@@ -128,8 +126,13 @@ module drawAround(column, row){
         offin = (column == 9 && n >= targetPoint + 5)
           ? targetPoint - 6
           : min(n, targetPoint) + 6*column,
-        offset = n == 5 || n == 0 ? .75 : offsets[offin],
-        alpha = n < targetPoint ? offset : 1-offset
+        dist = magnitude(points3d[n] - points3d[targetPoint]),
+        retractPct = retractAmt/dist,
+        offset = 
+          n == 5 || n == 0 || n == 6 || n == 11 || n == 12 || n == 17
+            ? .75 
+            : offsets[offin],
+        alpha = (n < targetPoint ? offset : 1-offset) - retractPct
       )
         (points3d[n] * alpha + 
           points3d[targetPoint] * (1.0-alpha))
