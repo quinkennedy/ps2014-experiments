@@ -14,18 +14,24 @@ include <scad-utils/hull.scad>
 
 both = true;
 inv = true;
-zs = [0, 52, 85, 95, 128, 180];
-zsi = [180, 128, 95, 85, 52, 0];
+zs = [10, 52, 85, 95, 128, 170];
+zsi = [170, 128, 95, 85, 52, 10];
 ts = [-36, 0, 36];
 tsi = [36, 0, -36];
 
 spherical = [
   for(t = ts, z = zs) 
-    [diameter/2, z > 90 ? t + 2 : t, z]
+    [
+      diameter/2, 
+      (z > 90 ? t + 2 : t) + (z < 52 || z > 128 ? 18 : 0), 
+      z]
 ];
 sphericali = [ 
   for(t = ts, z = zsi) 
-    [diameter/2, z > 90 ? t + 2 : t, z]
+    [
+      diameter/2, 
+      (z > 90 ? t + 2 : t) + (z < 52 || z > 128 ? 18 : 0), 
+      z]
 ];
 
 points3d = [ for(p = spherical) spher_rect(p[0], p[1], p[2]) ];
@@ -130,7 +136,7 @@ module drawAround(column, row){
         retractPct = retractAmt/dist,
         offset = 
           n == 5 || n == 0 || n == 6 || n == 11 || n == 12 || n == 17
-            ? .75 
+            ? 1 
             : offsets[offin],
         alpha = (n < targetPoint ? offset : 1-offset) - retractPct
       )
