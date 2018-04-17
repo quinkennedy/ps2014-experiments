@@ -23,14 +23,14 @@ spherical = [
   for(t = ts, z = zs) 
     [
       diameter/2, 
-      (z > 90 ? t + 2 : t) + (z < 52 || z > 128 ? 18 : 0), 
+      (z > 90 ? t + 2 : t) + (z < 52  ? 18 : (z > 128 ? -18 : 0)), 
       z]
 ];
 sphericali = [ 
   for(t = ts, z = zsi) 
     [
       diameter/2, 
-      (z > 90 ? t + 2 : t) + (z < 52 || z > 128 ? 18 : 0), 
+      (z > 90 ? t + 2 : t) + (z < 52 ? 18 : (z > 128 ? -18 : 0)), 
       z]
 ];
 
@@ -44,6 +44,7 @@ hulli = hull(points3di);
 
 offsets = rands(.5, .5, len(points3d) * 10, 310);
 retractAmt = 10;
+crustThickness = 2;
 
 function cat(L1, L2) = [for (i=[0:len(L1)+len(L2)-1]) 
                         i < len(L1)? L1[i] : L2[i-len(L1)]];
@@ -147,7 +148,7 @@ module drawAround(column, row){
   points = cat(p1MidPoints, [points3d[targetPoint]]);
   //extend all midpoints slightly beyond 
   // the surface of the sphere
-  p1MidExt = [ for(p = points) putOnSphere(diameter/2+2, p) ];
+  p1MidExt = [ for(p = points) putOnSphere(diameter/2+crustThickness, p) ];
   //project all points out to a very large sphere
   pointsFar = [
     for(p=points)
@@ -188,7 +189,7 @@ module drawAround(column, row){
       if (sphered){
         intersection(){
           difference(){
-            sphere(d=diameter+2, $fn=100);
+            sphere(d=diameter+crustThickness, $fn=100);
             sphere(d=diameter, $fn=100);
           }
           polyhedron(points=pointsFarCenter, faces=hullFarCenter);
