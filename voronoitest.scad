@@ -23,14 +23,14 @@ spherical = [
   for(t = ts, z = zs) 
     [
       diameter/2, 
-      (z > 90 ? t + 2 : t) + (z < 52  ? 18 : (z > 128 ? -18 : 0)), 
+      (z > 90 ? t + 2 : t) + (z == zs[0] || z == zsi[0] ? 18 : 0), 
       z]
 ];
 sphericali = [ 
   for(t = ts, z = zsi) 
     [
       diameter/2, 
-      (z > 90 ? t + 2 : t) + (z < 52 ? 18 : (z > 128 ? -18 : 0)), 
+      (z > 90 ? t + 2 : t) + (z == zs[0] || z == zsi[0] ? 18 : 0), 
       z]
 ];
 
@@ -113,8 +113,6 @@ module drawAround(column, row){
   targetPoint = 7 + row;
   targetPointi = 10 - row;
   //get all points that share an edge with this point
-  //echo(getNeighborPoints(hull, targetPoint));
-  //echo(uninverse(getNeighborPoints(hulli, targetPointi)));
   neighbors = getNeighborPoints(hull, targetPoint);
   neighborsi = uninverse(getNeighborPoints(hulli, targetPointi));
   p1Neighbors = 
@@ -136,9 +134,11 @@ module drawAround(column, row){
         dist = magnitude(points3d[n] - points3d[targetPoint]),
         retractPct = retractAmt/dist,
         offset = 
-          n == 5 || n == 0 || n == 6 || n == 11 || n == 12 || n == 17
+          n==0 || n == 6 || n == 5
             ? 1 
-            : offsets[offin],
+            : n == 11 
+              ? 0
+              : offsets[offin],
         alpha = (n < targetPoint ? offset : 1-offset) - retractPct
       )
         (points3d[n] * alpha + 
@@ -281,11 +281,8 @@ drawAll = true;
 
 if (drawAll){
   onlytwo=false;
-  cSet = (onlytwo ? [9,0,1] : [for(c =[0:9]) c]);
+  cSet = (onlytwo ? [0] : [for(c =[0:9]) c]);
   for(r=[0:3], c=cSet){
-    drawAround(c,r);
-    drawAround(c,r);
-    drawAround(c,r);
     drawAround(c,r);
   }
 } else {
