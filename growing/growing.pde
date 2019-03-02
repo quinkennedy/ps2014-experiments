@@ -6,11 +6,13 @@ import wblut.nurbs.*;
 import wblut.*;
 import wblut.processing.*;
 import java.util.ArrayList;
+import java.util.List;
 
 HE_Mesh mesh;
 WB_Render render;
 WB_AABBTree tree;
 ArrayList<Panel> panels = new ArrayList<Panel>();
+boolean done = false;
 
 public class Panel{
   public Panel(float theta, float phi, HE_Mesh mesh, WB_AABBTree tree){
@@ -23,6 +25,7 @@ public class Panel{
       cos(phi)*400);
     this.selection.add(tree.getClosestFace(coord));
     c = color(random(255), random(255), random(255));
+    done = false;
   }
   
   public float theta;
@@ -30,6 +33,7 @@ public class Panel{
   public WB_Coordinate coord;
   public HE_Selection selection;
   public color c;
+  public boolean done;
 }
 
 void setup() {
@@ -43,7 +47,7 @@ void setup() {
   //creator.setOuterRadius(200);// radius of sphere circumscribing cube
   //creator.setMidRadius(200);// radius of sphere tangential to edges
   mesh=new HE_Mesh(creator);
-  mesh.subdivide(new HES_CatmullClark(), 5);
+  mesh.subdivide(new HES_CatmullClark(), 6);
 
   render=new WB_Render(this);
   tree = new WB_AABBTree(mesh, 4);
@@ -53,8 +57,8 @@ void setup() {
       panels.add(new Panel(t + (p > 90 ? 2 : 0), p, mesh, tree));
     }
   }
-  //panels.add(new Panel(0, 0, mesh, tree));
-  //panels.add(new Panel(0, 180, mesh, tree));
+  panels.add(new Panel(0, 0, mesh, tree));
+  panels.add(new Panel(0, 180, mesh, tree));
 }
 
 
@@ -64,10 +68,10 @@ void draw() {
   directionalLight(255, 255, 255, 1, 1, -1);
   directionalLight(127, 127, 127, -1, -1, 1);
   translate(width/2,height/2);
+  rotateX(-(mouseY-height/2)*1.0f/height*PI/2);
   rotateY(frameCount*0.005);
   //rotateY(mouseX*1.0f/width*TWO_PI);
   rotateX(PI/2);
-  //rotateX(mouseY*1.0f/height*TWO_PI);
   stroke(0);
   //render.drawEdges(mesh);
   noStroke();
@@ -77,13 +81,58 @@ void draw() {
     fill(p.c);
     render.drawFaces(p.selection);
   }
-  if (frameCount%10==0){
+  if (!done && frameCount%1==0){
     mousePressed();
+    if (done){
+      for(Panel p : panels){
+        p.selection.shrink();
+        p.selection.invertSelection();
+        p.selection.smooth(2);
+        p.selection.invertSelection();
+      }
+    }
+  }
+}
+
+public <T> void shuffle(List<T> l){
+  for(int i = 0; i < l.size()-1; i++){
+    int sel = int(random(l.size() - i) + i);
+    if (sel >= l.size()){
+      println("i = " + i + ", sel = " + sel);
+      sel = l.size() - 1;
+    }
+    if (sel != i){
+      T temp = l.get(i);
+      l.set(i, l.get(sel));
+      l.set(sel, temp);
+    }
   }
 }
 
 void mousePressed(){
+  done = true;
   for(Panel p : panels){
-    p.selection.surround();
+    if (p.done){
+      continue;
+    } else {
+      p.done = true;
+      List<HE_Halfedge> outer = p.selection.getOuterHalfedges();
+      shuffle(outer);
+      for(HE_Halfedge h : outer){
+        boolean alreadyClaimed = false;
+        for(Panel other : panels){
+          if (other.selection.contains(h.getFace())){
+            alreadyClaimed = true;
+            break;
+          }
+        }
+        if (!alreadyClaimed){
+          p.selection.add(h.getFace());
+          p.done = false;
+          done = false;
+          break;
+        }
+      }
+    }
   }
 }
