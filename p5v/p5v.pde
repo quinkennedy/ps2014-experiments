@@ -28,19 +28,45 @@ SelectingVertices
 Triangulation3D
 */
 
+public class Spherical{
+  public Spherical(float t, float p, float r){
+    theta = t;
+    phi = p;
+    radius = r;
+  }
+  
+  public Spherical(WB_Point p){
+    double[] coords = p.coords();
+    radius = sqrt((float)(coords[0] * coords[0] + coords[1] * coords[1] + coords[2] * coords[2]));
+    phi = acos((float)(coords[2] / radius));
+    theta = acos((float)(coords[0]/(radius * sin(phi))));
+  }
+  
+  public WB_Point getPoint(){
+    return pointFromSpherical(theta, phi, radius);
+  }
+  
+  public float theta;
+  public float phi;
+  public float radius;
+}
+
 public class Panel{
-  public Panel(WB_Point p){
-    point = p;
+  public Panel(Spherical p){
+    spherical = p;
+    point = p.getPoint();
     points = new ArrayList<WB_Point>();
-    points.add(p);
+    points.add(point);
     c = color(random(255), random(255), random(255));
   }
   
+  public Spherical spherical;
   public WB_Point point;
   public HE_Face face;
   public List<WB_Point> points;
   public HE_Selection selection;
   public color c;
+  public HE_Mesh mesh;
 }
 
 WB_Point pointFromSpherical(float theta, float phi, float radius){
@@ -81,7 +107,7 @@ void setup(){
     for(float p : new int[]{52, 85, 95, 128}){
       float theta = (t + (p < 90 ? 2 : 0))*PI/180;
       float phi = p*PI/180;
-      panels.add(new Panel(pointFromSpherical(theta, phi, diameter/2)));
+      panels.add(new Panel(new Spherical(theta, phi, diameter/2)));
       addPoint(points, theta, phi, diameter/2, true);
     }
   }
@@ -152,7 +178,7 @@ void setup(){
   List<WB_Point> points2 = new ArrayList<WB_Point>();
   for(Panel p : panels){
     for(WB_Point pt : p.points){
-      points2.add(pt.mul(1.1));
+      points2.add(pt.mul(1.05));
       points2.add(pt);
       points2.add(pt.mul(.95));
     }
@@ -179,6 +205,9 @@ void setup(){
         v2Mesh.add(face);
         if (p.selection == null){
           p.selection = v2Mesh.getNewSelection();
+          p.mesh = new HE_Mesh(v.getMesh());
+        } else {
+          p.mesh.fuse(new HE_Mesh(v.getMesh()));
         }
         p.selection.add(face);
         break;
@@ -229,15 +258,15 @@ void draw() {
   }
   //draw each panel's faces in its color
   for (Panel p : panels){
-    fill(p.c);
-    noStroke();
-    render.drawFaces(p.selection);
+    noFill();//fill(p.c);
+    stroke(p.c);//noStroke();
+    render.drawFaces(p.mesh);//p.selection);
   }
   
   //draw the mesh of the "raw" panels
   noFill();
   stroke(0);
-  render.drawFaces(vMesh);
+  //render.drawFaces(vMesh);
   
   stroke(255, 0, 0);
   //render.drawFaces(hull);
@@ -246,4 +275,26 @@ void draw() {
   fill(0, 0, 255);
   noStroke();
   //render.drawFace(tree.getClosestFace(points.get(0)));
+}
+
+void keyPressed(){
+  if (key == 's'){
+    int i = 0;
+    for (Panel p : panels){
+      if (p.mesh != null){
+      p.mesh.triangulate();
+      Spherical s = p.spherical;
+      p.mesh.rotateAboutOriginSelf(-s.theta, 0, 0, 1);
+      p.mesh.rotateAboutOriginSelf(-s.phi, 0, 1, 0);
+      //if (s.phi < PI/3 && s.theta < PI/4){
+      //  p.mesh.rotateAboutOriginSelf(-s.phi, pointFromSpherical(s.theta + PI/2, PI/2, 1));
+      //} else {
+      //  p.mesh = null;
+      //}
+      String name = round(s.theta * 180/PI) + "_" + round(s.phi * 180/PI);
+      HET_Export.saveToSTL(p.mesh, sketchPath("exports"), name);
+      i++;
+      }
+    }
+  }
 }
