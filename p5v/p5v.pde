@@ -17,6 +17,7 @@ WB_Render3D render;
 WB_GeometryFactory gf=new WB_GeometryFactory();
 WB_AABB box;
 float diameter = 342;
+float thickness = 3;
 
 HE_Mesh vMesh, v2Mesh;
 WB_AABBTree vTree;
@@ -176,11 +177,13 @@ void setup(){
   
   //add all the points for voronoi shell generation
   List<WB_Point> points2 = new ArrayList<WB_Point>();
+  float radius = diameter/2;
+  float multAmt = thickness/2/radius;
   for(Panel p : panels){
     for(WB_Point pt : p.points){
-      points2.add(pt.mul(1.05));
+      points2.add(pt.mul(1 + multAmt));
       points2.add(pt);
-      points2.add(pt.mul(.95));
+      points2.add(pt.mul(1 - multAmt));
     }
   }
   //don't forget the "keep out" area for the poles
@@ -286,6 +289,7 @@ void keyPressed(){
       Spherical s = p.spherical;
       p.mesh.rotateAboutOriginSelf(-s.theta, 0, 0, 1);
       p.mesh.rotateAboutOriginSelf(-s.phi, 0, 1, 0);
+      p.mesh.moveSelf(0, 0, -diameter/2);
       //if (s.phi < PI/3 && s.theta < PI/4){
       //  p.mesh.rotateAboutOriginSelf(-s.phi, pointFromSpherical(s.theta + PI/2, PI/2, 1));
       //} else {
