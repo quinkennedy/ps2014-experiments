@@ -5,6 +5,7 @@ import wblut.math.*;
 import wblut.nurbs.*;
 import wblut.*;
 import wblut.processing.*;
+import processing.svg.*;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -18,6 +19,8 @@ WB_GeometryFactory gf=new WB_GeometryFactory();
 WB_AABB box;
 float diameter = 342;
 float thickness = 3;
+float addFacetsMult = 0;//1.5;
+boolean renderSVG = false;
 
 HE_Mesh vMesh, v2Mesh;
 WB_AABBTree vTree;
@@ -164,7 +167,7 @@ void setup(){
   //create random points on the sphere,
   // if they are in the space "owned" by one of the attachment points
   // add it to that panel's set of points
-  for(int i = floor(panels.size()*1.5); i >= 0; i--){
+  for(int i = floor(panels.size()*addFacetsMult); i >= 0; i--){
     WB_Point point = randomPointOnSphere(diameter/2);
     HE_Face face = vTree.getClosestFace(point);
     for(Panel p : panels){
@@ -229,55 +232,60 @@ void setup(){
 }
   
 void draw() {
-  //clear screen
-  background(55);
-  
-  //set up lighting
-  //directionalLight(240, 240, 240, 1, 1, -1);
-  directionalLight(127, 127, 127, 1, 1, -1);
-  ambientLight(230, 230, 230);
-  
-  translate(width/2, height/2);
-  fill(0);
-  //rotate based on mouse position
-  rotateY(mouseX*1.0f/width*TWO_PI);
-  rotateX(mouseY*1.0f/height*TWO_PI);
-  
-  //draw the attachment points
-  noFill();
-  stroke(0);
-  strokeWeight(2);
-  render.drawPoint(points, 1);
-  
-  strokeWeight(1);
-  noFill();
-  /*
-  for(Panel p : panels){
-    stroke(p.c);
-    render.drawMesh(p.mesh);
-  }*/
-  for (WB_VoronoiCell3D vor : voronoi) {
-    //render.drawMesh(vor.getMesh());
+  if (!renderSVG){
+    //clear screen
+    background(55);
+    
+    //set up lighting
+    //directionalLight(240, 240, 240, 1, 1, -1);
+    directionalLight(127, 127, 127, 1, 1, -1);
+    ambientLight(230, 230, 230);
+    
+    translate(width/2, height/2);
+    fill(0);
+    //rotate based on mouse position
+    rotateY(mouseX*1.0f/width*TWO_PI);
+    rotateX(mouseY*1.0f/height*TWO_PI);
+    
+    //draw the attachment points
+    noFill();
+    stroke(0);
+    strokeWeight(2);
+    render.drawPoint(points, 1);
+    
+    strokeWeight(1);
+    noFill();
+    /*
+    for(Panel p : panels){
+      stroke(p.c);
+      render.drawMesh(p.mesh);
+    }*/
+    for (WB_VoronoiCell3D vor : voronoi) {
+      //render.drawMesh(vor.getMesh());
+    }
+    //draw each panel's faces in its color
+    for (Panel p : panels){
+      noFill();//fill(p.c);
+      stroke(p.c);//noStroke();
+      render.drawFaces(p.mesh);//p.selection);
+    }
+    
+    //draw the mesh of the "raw" panels
+    noFill();
+    stroke(0);
+    //render.drawFaces(vMesh);
+    
+    stroke(255, 0, 0);
+    //render.drawFaces(hull);
+    stroke(0, 255, 0);
+    //render.drawFaces(dual);
+    fill(0, 0, 255);
+    noStroke();
+    //render.drawFace(tree.getClosestFace(points.get(0)));
+  }else{
+    doRenderSVG();
+    renderSVG = false;
   }
-  //draw each panel's faces in its color
-  for (Panel p : panels){
-    noFill();//fill(p.c);
-    stroke(p.c);//noStroke();
-    render.drawFaces(p.mesh);//p.selection);
-  }
-  
-  //draw the mesh of the "raw" panels
-  noFill();
-  stroke(0);
-  //render.drawFaces(vMesh);
-  
-  stroke(255, 0, 0);
-  //render.drawFaces(hull);
-  stroke(0, 255, 0);
-  //render.drawFaces(dual);
-  fill(0, 0, 255);
-  noStroke();
-  //render.drawFace(tree.getClosestFace(points.get(0)));
 }
 
 void keyPressed(){
@@ -285,20 +293,49 @@ void keyPressed(){
     int i = 0;
     for (Panel p : panels){
       if (p.mesh != null){
+        p.mesh.triangulate();
+        Spherical s = p.spherical;
+        p.mesh.rotateAboutOriginSelf(-s.theta, 0, 0, 1);
+        p.mesh.rotateAboutOriginSelf(-s.phi, 0, 1, 0);
+        p.mesh.moveSelf(0, 0, -diameter/2);
+        //if (s.phi < PI/3 && s.theta < PI/4){
+        //  p.mesh.rotateAboutOriginSelf(-s.phi, pointFromSpherical(s.theta + PI/2, PI/2, 1));
+        //} else {
+        //  p.mesh = null;
+        //}
+        String name = round(s.theta * 180/PI) + "_" + round(s.phi * 180/PI);
+        HET_Export.saveToSTL(p.mesh, sketchPath("exports"), name);
+        i++;
+      }
+    }
+  } else if (key == 'v'){
+    renderSVG = true;
+  }
+}
+
+void doRenderSVG(){
+  int i = 0;
+  for(Panel p : panels){
+    if (p.mesh != null){
       p.mesh.triangulate();
       Spherical s = p.spherical;
-      p.mesh.rotateAboutOriginSelf(-s.theta, 0, 0, 1);
-      p.mesh.rotateAboutOriginSelf(-s.phi, 0, 1, 0);
-      p.mesh.moveSelf(0, 0, -diameter/2);
       //if (s.phi < PI/3 && s.theta < PI/4){
       //  p.mesh.rotateAboutOriginSelf(-s.phi, pointFromSpherical(s.theta + PI/2, PI/2, 1));
       //} else {
       //  p.mesh = null;
       //}
       String name = round(s.theta * 180/PI) + "_" + round(s.phi * 180/PI);
-      HET_Export.saveToSTL(p.mesh, sketchPath("exports"), name);
+      beginRaw(SVG, "exports/raw_"+name+".svg");
+      beginRecord(SVG,"exports/rec_"+name+".svg");
+      p.mesh.rotateAboutOriginSelf(-s.theta, 0, 0, 1);
+      p.mesh.rotateAboutOriginSelf(-s.phi, 0, 1, 0);
+      p.mesh.moveSelf(0, 0, -diameter/2);
+      noFill();
+      stroke(0);
+      render.drawFaces(p.mesh);
+      endRaw();
+      endRecord();
       i++;
-      }
     }
   }
 }
